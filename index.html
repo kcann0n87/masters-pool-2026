@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 Masters Golf Pool</title>
+<style>
+  :root {
+    --masters-green: #006747;
+    --masters-dark: #004d35;
+    --masters-gold: #c8a951;
+    --masters-cream: #f5f0e1;
+    --masters-light: #e8f5e9;
+    --cut-red: #c0392b;
+    --birdie-red: #d32f2f;
+    --bogey-blue: #1565c0;
+    --par: #333;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    background: var(--masters-cream);
+    color: #333;
+    min-height: 100vh;
+  }
+  header {
+    background: var(--masters-green);
+    color: white;
+    text-align: center;
+    padding: 24px 16px 18px;
+    border-bottom: 4px solid var(--masters-gold);
+  }
+  header h1 { font-size: 2rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+  header .subtitle { color: var(--masters-gold); font-size: 1rem; font-style: italic; }
+  .info-bar {
+    background: var(--masters-dark);
+    color: white;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 12px 32px;
+    padding: 10px 16px;
+    font-size: 0.85rem;
+  }
+  .info-bar span { white-space: nowrap; }
+  .info-bar .gold { color: var(--masters-gold); font-weight: bold; }
+  .live-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: #4caf50;
+    border-radius: 50%;
+    margin-right: 4px;
+    animation: pulse 2s infinite;
+  }
+  .live-dot.offline { background: #999; animation: none; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .tabs {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    background: white;
+    border-bottom: 2px solid #ddd;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .tab-btn {
+    padding: 12px 24px;
+    border: none;
+    background: white;
+    font-family: Georgia, serif;
+    font-size: 0.95rem;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    color: #666;
+  }
+  .tab-btn:hover { color: var(--masters-green); }
+  .tab-btn.active {
+    color: var(--masters-green);
+    border-bottom-color: var(--masters-gold);
+    font-weight: bold;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-top: 12px;
+  }
+  .leaderboard-table th {
+    background: var(--masters-green);
+    color: white;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .leaderboard-table th.score-col,
+  .leaderboard-table td.score-col { text-align: center; }
+  .leaderboard-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9rem;
+  }
+  .leaderboard-table tr:hover { background: var(--masters-light); }
+  .leaderboard-table tr.cut td { color: #999; text-decoration: line-through; }
+  .leaderboard-table tr.cut td.pos-col { text-decoration: none; }
+  .pos-col { width: 40px; text-align: center; font-weight: bold; color: #888; }
+  .owner-badge {
+    display: inline-block;
+    background: var(--masters-green);
+    color: white;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .score-under { color: var(--birdie-red); font-weight: bold; }
+  .score-over { color: var(--bogey-blue); font-weight: bold; }
+  .score-even { color: var(--par); }
+  .score-cut { color: #999; }
+
+  .team-standings { display: grid; gap: 16px; margin-top: 12px; }
+  .team-standing-row {
+    background: white;
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    align-items: center;
+    gap: 16px;
+  }
+  .team-standing-row.ineligible { opacity: 0.6; }
+  .team-rank { font-size: 1.5rem; font-weight: bold; color: var(--masters-gold); text-align: center; }
+  .team-rank.first { color: #c8a951; }
+  .team-rank.second { color: #8a8a8a; }
+  .team-info h3 { font-size: 1.1rem; margin-bottom: 2px; }
+  .team-info .players-made-cut { font-size: 0.8rem; color: #888; }
+  .team-info .ineligible-label { color: var(--cut-red); font-weight: bold; font-size: 0.75rem; }
+  .team-total-score { font-size: 1.4rem; font-weight: bold; }
+
+  .teams-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+  }
+  .team-card {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .team-card-header {
+    background: var(--masters-green);
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .team-card-header h3 { font-size: 1rem; }
+  .team-card-header .team-score { color: var(--masters-gold); font-size: 1.1rem; }
+  .team-card-body { padding: 0; }
+  .team-player {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.85rem;
+  }
+  .team-player:last-child { border-bottom: none; }
+  .team-player.cut { color: #bbb; text-decoration: line-through; }
+  .team-player .pick-num { color: #aaa; margin-right: 6px; font-size: 0.75rem; }
+  .team-player .player-score { font-weight: bold; }
+
+  .payouts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+  }
+  .payout-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    border-top: 4px solid var(--masters-gold);
+  }
+  .payout-card h3 { color: var(--masters-green); margin-bottom: 8px; }
+  .payout-amount { font-size: 1.8rem; font-weight: bold; color: var(--masters-gold); }
+  .payout-desc { font-size: 0.8rem; color: #888; margin-top: 4px; }
+
+  .rules-box {
+    background: white;
+    border-radius: 8px;
+    padding: 24px;
+    margin-top: 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    line-height: 1.7;
+  }
+  .rules-box h3 { color: var(--masters-green); margin-bottom: 12px; }
+  .rules-box ul { padding-left: 20px; }
+  .rules-box li { margin-bottom: 6px; }
+
+  .section-title {
+    font-size: 1.1rem;
+    color: var(--masters-green);
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid var(--masters-gold);
+    display: inline-block;
+  }
+
+  .last-updated {
+    text-align: center;
+    font-size: 0.75rem;
+    color: #aaa;
+    padding: 16px;
+    font-style: italic;
+  }
+
+  .thru-col { color: #888; font-size: 0.8rem; }
+
+  .feed-status {
+    text-align: center;
+    padding: 8px;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  .feed-status.live { background: #d4edda; color: #155724; }
+  .feed-status.pre { background: #fff3cd; color: #856404; }
+  .feed-status.error { background: #f8d7da; color: #721c24; }
+  .feed-status.manual { background: #e2e3e5; color: #383d41; }
+
+  .countdown {
+    font-size: 0.75rem;
+    color: #888;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  /* Admin */
+  .admin-section { margin-top: 16px; }
+  .admin-section textarea {
+    width: 100%;
+    height: 300px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    margin-top: 8px;
+  }
+  .admin-btn {
+    background: var(--masters-green);
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-family: Georgia, serif;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-top: 8px;
+    margin-right: 8px;
+  }
+  .admin-btn:hover { background: var(--masters-dark); }
+  .status-msg { margin-top: 8px; padding: 8px; border-radius: 4px; font-size: 0.85rem; display: none; }
+  .status-msg.success { background: #d4edda; color: #155724; display: block; }
+  .status-msg.error { background: #f8d7da; color: #721c24; display: block; }
+
+  @media (max-width: 600px) {
+    header h1 { font-size: 1.4rem; }
+    .tab-btn { padding: 10px 14px; font-size: 0.8rem; }
+    .team-standing-row { grid-template-columns: 30px 1fr auto; padding: 12px; }
+    .teams-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>The Masters Pool 2026</h1>
+  <div class="subtitle">Augusta National Golf Club &bull; April 10&ndash;13, 2026</div>
+</header>
+
+<div class="info-bar">
+  <span><span class="gold">$3,000</span> Per Team</span>
+  <span><span class="gold">8</span> Teams</span>
+  <span><span class="gold">$24,000</span> Total Pot</span>
+  <span>Snake Draft &bull; 8 Rounds</span>
+  <span id="liveIndicator"><span class="live-dot offline"></span> Waiting for tournament</span>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('leaderboard',this)">Leaderboard</button>
+  <button class="tab-btn" onclick="showTab('teams',this)">Teams</button>
+  <button class="tab-btn" onclick="showTab('standings',this)">Standings</button>
+  <button class="tab-btn" onclick="showTab('payouts',this)">Payouts</button>
+  <button class="tab-btn" onclick="showTab('admin',this)">Update</button>
+</div>
+
+<div class="container">
+  <div id="leaderboard" class="tab-content active"></div>
+  <div id="teams" class="tab-content"></div>
+  <div id="standings" class="tab-content"></div>
+  <div id="payouts" class="tab-content"></div>
+  <div id="admin" class="tab-content"></div>
+</div>
+
+<div class="last-updated" id="lastUpdated"></div>
+
+<script>
+// ============================================================
+//  POOL CONFIGURATION
+// ============================================================
+const OWNERS = {
+  "Logan":  { players: ["Scheffler","Hovland","Cantlay","Homa","Clark","Nick Taylor","Sergio Garcia","DJ"] },
+  "Stu":    { players: ["Rahm","Reed","Min Woo Lee","Hatton","Day","IM","Cam Smith","Jarvis"] },
+  "Tim":    { players: ["Bryson","Morikawa","Bhatia","Scott","Burns","Kitayama","Sam Stevens","Potgieter"] },
+  "Nolan":  { players: ["Xander","MacIntyre","Henley","N Hojgaard","Bridgeman","R Hojgaard","Keegan Bradley","Haotong Li"] },
+  "Sean":   { players: ["Aberg","Matsuyama","Koepka","Lowry","McNealy","Berger","Alex Noren","Ryan Gerard"] },
+  "Devon":  { players: ["Cam Young","Gotterup","Straka","Conners","Griffin","Penge","Ryan Fox","Michael Kim"] },
+  "Billy":  { players: ["Rory","Rose","Spieth","JT","Spaun","English","Echavarria","Greyersman"] },
+  "Tommy":  { players: ["Fitzpatrick","Fleetwood","Si Woo","Knapp","Woodland","Rai","Harry Hall","Brian Harman"] }
+};
+
+const DRAFT_ORDER = {
+  "Scheffler":1,"Rahm":2,"Bryson":3,"Xander":4,"Aberg":5,"Cam Young":6,"Rory":7,"Fitzpatrick":8,
+  "Fleetwood":9,"Rose":10,"Gotterup":11,"Matsuyama":12,"MacIntyre":13,"Morikawa":14,"Reed":15,"Hovland":16,
+  "Cantlay":17,"Min Woo Lee":18,"Bhatia":19,"Henley":20,"Koepka":21,"Straka":22,"Spieth":23,"Si Woo":24,
+  "Knapp":25,"JT":26,"Conners":27,"Lowry":28,"N Hojgaard":29,"Scott":30,"Hatton":31,"Homa":32,
+  "Clark":33,"Day":34,"Burns":35,"Bridgeman":36,"McNealy":37,"Griffin":38,"Spaun":39,"Woodland":40,
+  "Rai":41,"English":42,"Penge":43,"Berger":44,"R Hojgaard":45,"Kitayama":46,"IM":47,"Nick Taylor":48,
+  "Sergio Garcia":49,"Cam Smith":50,"Sam Stevens":51,"Keegan Bradley":52,"Alex Noren":53,"Ryan Fox":54,"Echavarria":55,"Harry Hall":56,
+  "Brian Harman":57,"Greyersman":58,"Michael Kim":59,"Ryan Gerard":60,"Haotong Li":61,"Potgieter":62,"Jarvis":63,"DJ":64
+};
+
+// ============================================================
+//  NAME MAPPING: Pool nickname -> Masters.com full name
+//  The feed uses "display_name" (last name) and "full_name"
+//  We match on last name primarily, with overrides for conflicts
+// ============================================================
+const NAME_TO_FEED = {
+  "Scheffler": "Scheffler",
+  "Rahm": "Rahm",
+  "Bryson": "DeChambeau",
+  "Xander": "Schauffele",
+  "Aberg": "Aberg",
+  "Cam Young": "Young",  // Cameron Young
+  "Rory": "McIlroy",
+  "Fitzpatrick": "Fitzpatrick",
+  "Fleetwood": "Fleetwood",
+  "Rose": "Rose",
+  "Gotterup": "Gotterup",
+  "Matsuyama": "Matsuyama",
+  "MacIntyre": "MacIntyre",
+  "Morikawa": "Morikawa",
+  "Reed": "Reed",
+  "Hovland": "Hovland",
+  "Cantlay": "Cantlay",
+  "Min Woo Lee": "Lee",  // will match "Min Woo Lee"
+  "Bhatia": "Bhatia",
+  "Henley": "Henley",
+  "Koepka": "Koepka",
+  "Straka": "Straka",
+  "Spieth": "Spieth",
+  "Si Woo": "Kim, S",  // Si Woo Kim
+  "Knapp": "Knapp",
+  "JT": "Thomas",
+  "Conners": "Conners",
+  "Lowry": "Lowry",
+  "N Hojgaard": "Hojgaard, N",
+  "Scott": "Scott",
+  "Hatton": "Hatton",
+  "Homa": "Homa",
+  "Clark": "Clark",
+  "Day": "Day",
+  "Burns": "Burns",
+  "Bridgeman": "Bridgeman",
+  "McNealy": "McNealy",
+  "Griffin": "Griffin",
+  "Spaun": "Spaun",
+  "Woodland": "Woodland",
+  "Rai": "Rai",
+  "English": "English",
+  "Penge": "Penge",
+  "Berger": "Berger",
+  "R Hojgaard": "Hojgaard, R",
+  "Kitayama": "Kitayama",
+  "IM": "Im",
+  "Nick Taylor": "Taylor",
+  "Sergio Garcia": "Garcia",
+  "Cam Smith": "Smith",
+  "Sam Stevens": "Stevens",
+  "Keegan Bradley": "Bradley",
+  "Alex Noren": "Noren",
+  "Ryan Fox": "Fox",
+  "Echavarria": "Echavarria",
+  "Harry Hall": "Hall",
+  "Brian Harman": "Harman",
+  "Greyersman": "Greyserman",
+  "Michael Kim": "Kim, M",
+  "Ryan Gerard": "Gerard",
+  "Haotong Li": "Li",
+  "Potgieter": "Potgieter",
+  "Jarvis": "Jarvis",
+  "DJ": "Johnson"
+};
+
+// ============================================================
+//  STATE
+// ============================================================
+let players = {};  // keyed by pool nickname
+let feedSource = "none";
+let lastFetchTime = null;
+let autoRefreshInterval = null;
+let refreshSeconds = 60;
+
+// Initialize all players to blank
+Object.keys(DRAFT_ORDER).forEach(name => {
+  players[name] = { score: null, today: null, thru: null, status: "active", pos: null };
+});
+
+// ============================================================
+//  LIVE DATA FETCHING
+// ============================================================
+
+// Try Masters.com feed first, then ESPN fallback
+async function fetchLiveScores() {
+  let success = false;
+  try {
+    success = await fetchMastersFeed();
+  } catch(e) {
+    console.log("Masters feed failed:", e);
+  }
+  if (!success) {
+    try {
+      success = await fetchESPNFeed();
+    } catch(e) {
+      console.log("ESPN feed failed:", e);
+    }
+  }
+  if (success) {
+    lastFetchTime = new Date();
+    renderAll();
+  }
+  updateFeedStatus(success);
+  return success;
+}
+
+// Masters.com official feed
+async function fetchMastersFeed() {
+  const url = "https://www.masters.com/en_US/scores/feeds/2026/scores.json";
+  const resp = await fetch(url, { cache: "no-cache" });
+  if (!resp.ok) return false;
+  const data = await resp.json();
+  if (!data.data || !data.data.player || data.data.player.length === 0) return false;
+
+  const feedPlayers = data.data.player;
+
+  // Build lookup by last name and full name
+  const byLastName = {};
+  const byFullName = {};
+  feedPlayers.forEach(fp => {
+    const lastName = (fp.last_name || fp.display_name || "").trim();
+    const fullName = (fp.full_name || "").trim();
+    const firstName = (fp.first_name || "").trim();
+    byLastName[lastName.toLowerCase()] = fp;
+    byFullName[fullName.toLowerCase()] = fp;
+    // Also index "LastName, FirstInitial" for disambiguation
+    if (firstName) {
+      byLastName[(lastName + ", " + firstName[0]).toLowerCase()] = fp;
+    }
+  });
+
+  // Map pool players to feed data
+  for (const [poolName, feedHint] of Object.entries(NAME_TO_FEED)) {
+    const hint = feedHint.toLowerCase();
+    let fp = byLastName[hint] || byFullName[hint];
+
+    // Fallback: search by partial match on full_name
+    if (!fp) {
+      fp = feedPlayers.find(p =>
+        (p.full_name || "").toLowerCase().includes(hint) ||
+        (p.last_name || "").toLowerCase() === hint
+      );
+    }
+
+    if (fp) {
+      const topar = fp.topar;
+      let score = null;
+      if (topar !== undefined && topar !== null && topar !== "" && topar !== "X") {
+        score = topar === "E" ? 0 : parseInt(topar, 10);
+        if (isNaN(score)) score = null;
+      }
+
+      let todayScore = null;
+      if (fp.today !== undefined && fp.today !== null && fp.today !== "" && fp.today !== "X") {
+        todayScore = fp.today === "E" ? 0 : parseInt(fp.today, 10);
+        if (isNaN(todayScore)) todayScore = null;
+      }
+
+      let thru = fp.thru || null;
+      if (thru === "0" || thru === 0) thru = null;
+
+      // Status: "C" = cut, "W" = withdrawn
+      let status = "active";
+      const playerStatus = (fp.status || fp.newStatus || "").toString().toUpperCase();
+      if (playerStatus === "C" || playerStatus === "CUT") status = "cut";
+      if (playerStatus === "W" || playerStatus === "WD") status = "wd";
+
+      players[poolName] = {
+        score,
+        today: todayScore,
+        thru: thru === "F" ? "F" : thru,
+        status,
+        pos: fp.pos || null
+      };
+    }
+  }
+
+  feedSource = "masters";
+  return true;
+}
+
+// ESPN fallback
+async function fetchESPNFeed() {
+  const url = "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard";
+  const resp = await fetch(url, { cache: "no-cache" });
+  if (!resp.ok) return false;
+  const data = await resp.json();
+
+  // Find the Masters event
+  const mastersEvent = (data.events || []).find(e =>
+    (e.name || "").toLowerCase().includes("masters")
+  );
+  if (!mastersEvent) return false;
+
+  const competition = mastersEvent.competitions && mastersEvent.competitions[0];
+  if (!competition || !competition.competitors) return false;
+
+  const competitors = competition.competitors;
+
+  // Build lookup by last name
+  const byLastName = {};
+  competitors.forEach(c => {
+    const athlete = c.athlete || {};
+    const lastName = (athlete.lastName || athlete.displayName || "").toLowerCase();
+    const fullName = (athlete.fullName || athlete.displayName || "").toLowerCase();
+    byLastName[lastName] = c;
+    byLastName[fullName] = c;
+  });
+
+  for (const [poolName, feedHint] of Object.entries(NAME_TO_FEED)) {
+    const hint = feedHint.toLowerCase();
+    let c = byLastName[hint];
+    if (!c) {
+      c = competitors.find(comp => {
+        const a = comp.athlete || {};
+        return (a.lastName || "").toLowerCase() === hint ||
+               (a.fullName || "").toLowerCase().includes(hint);
+      });
+    }
+
+    if (c) {
+      let score = null;
+      const scoreStr = c.score;
+      if (scoreStr !== undefined && scoreStr !== null) {
+        score = scoreStr === "E" ? 0 : parseInt(scoreStr, 10);
+        if (isNaN(score)) score = null;
+      }
+
+      let status = "active";
+      const state = c.status && c.status.type ? c.status.type.name : "";
+      if (state === "cut") status = "cut";
+
+      players[poolName] = {
+        score,
+        today: null,
+        thru: c.status ? (c.status.displayValue || null) : null,
+        status,
+        pos: c.sortOrder || null
+      };
+    }
+  }
+
+  feedSource = "espn";
+  return true;
+}
+
+function updateFeedStatus(success) {
+  const indicator = document.getElementById("liveIndicator");
+  const dot = indicator.querySelector(".live-dot");
+
+  if (success && feedSource !== "none") {
+    const hasScores = Object.values(players).some(p => p.score !== null);
+    if (hasScores) {
+      dot.className = "live-dot";
+      indicator.innerHTML = `<span class="live-dot"></span> LIVE &mdash; via ${feedSource === "masters" ? "Masters.com" : "ESPN"} (updates every ${refreshSeconds}s)`;
+    } else {
+      dot.className = "live-dot offline";
+      indicator.innerHTML = `<span class="live-dot offline"></span> Connected &mdash; awaiting first tee (auto-refresh on)`;
+    }
+  } else {
+    dot.className = "live-dot offline";
+    indicator.innerHTML = `<span class="live-dot offline"></span> Offline &mdash; using manual scores`;
+  }
+}
+
+// ============================================================
+//  HELPERS
+// ============================================================
+function formatScore(score) {
+  if (score === null || score === undefined) return "\u2014";
+  if (score === 0) return "E";
+  return score > 0 ? `+${score}` : `${score}`;
+}
+
+function scoreClass(score, status) {
+  if (status === "cut" || status === "wd") return "score-cut";
+  if (score === null) return "score-even";
+  if (score < 0) return "score-under";
+  if (score > 0) return "score-over";
+  return "score-even";
+}
+
+function getOwner(playerName) {
+  for (const [owner, data] of Object.entries(OWNERS)) {
+    if (data.players.includes(playerName)) return owner;
+  }
+  return "";
+}
+
+function getPlayersSorted() {
+  return Object.entries(players)
+    .map(([name, data]) => ({ name, ...data, owner: getOwner(name) }))
+    .sort((a, b) => {
+      if (a.status === "cut" && b.status !== "cut") return 1;
+      if (b.status === "cut" && a.status !== "cut") return -1;
+      if (a.status === "wd" && b.status !== "wd") return 1;
+      if (b.status === "wd" && a.status !== "wd") return -1;
+      if (a.score === null && b.score === null) return (DRAFT_ORDER[a.name]||99) - (DRAFT_ORDER[b.name]||99);
+      if (a.score === null) return 1;
+      if (b.score === null) return -1;
+      return a.score - b.score;
+    });
+}
+
+function getTeamScore(ownerName) {
+  const team = OWNERS[ownerName];
+  const activePlayers = team.players
+    .map(p => ({ name: p, ...players[p] }))
+    .filter(p => p.status === "active" && p.score !== null)
+    .sort((a, b) => a.score - b.score);
+
+  const madeCut = team.players.filter(p => players[p].status === "active").length;
+  const cutPlayers = team.players.filter(p => players[p].status === "cut" || players[p].status === "wd").length;
+
+  let totalScore = null;
+  if (activePlayers.length > 0) {
+    totalScore = activePlayers.reduce((sum, p) => sum + p.score, 0);
+  }
+
+  const hasCut = Object.values(players).some(p => p.status === "cut");
+  const eligible = !hasCut || madeCut >= 4;
+
+  return { totalScore, madeCut, cutPlayers, eligible, activeWithScores: activePlayers.length };
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+function renderLeaderboard() {
+  const sorted = getPlayersSorted();
+  let pos = 0, lastScore = -999, sameCount = 0;
+
+  let html = `<h2 class="section-title">Tournament Leaderboard</h2>
+    <table class="leaderboard-table">
+    <thead><tr>
+      <th class="pos-col">Pos</th>
+      <th>Player</th>
+      <th class="score-col">Total</th>
+      <th class="score-col">Today</th>
+      <th class="score-col">Thru</th>
+    </tr></thead><tbody>`;
+
+  sorted.forEach(p => {
+    let displayPos = "\u2014";
+    if (p.status === "cut") {
+      displayPos = "CUT";
+    } else if (p.status === "wd") {
+      displayPos = "WD";
+    } else if (p.score !== null) {
+      if (p.score !== lastScore) {
+        pos += 1 + sameCount;
+        sameCount = 0;
+      } else {
+        sameCount++;
+      }
+      lastScore = p.score;
+      displayPos = sameCount > 0 || sorted.filter(x => x.score === p.score && x.status === "active").length > 1 ? `T${pos}` : pos;
+    }
+
+    const cutClass = (p.status === "cut" || p.status === "wd") ? "cut" : "";
+    html += `<tr class="${cutClass}">
+      <td class="pos-col">${displayPos}</td>
+      <td>${p.name}<span class="owner-badge">${p.owner}</span></td>
+      <td class="score-col ${scoreClass(p.score, p.status)}">${formatScore(p.score)}</td>
+      <td class="score-col ${scoreClass(p.today, p.status)}">${formatScore(p.today)}</td>
+      <td class="score-col thru-col">${p.thru || "\u2014"}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table>`;
+  document.getElementById('leaderboard').innerHTML = html;
+}
+
+function renderTeams() {
+  let html = `<h2 class="section-title">Team Rosters</h2><div class="teams-grid">`;
+
+  for (const [owner, data] of Object.entries(OWNERS)) {
+    const { totalScore } = getTeamScore(owner);
+    html += `<div class="team-card">
+      <div class="team-card-header">
+        <h3>${owner}</h3>
+        <span class="team-score">${formatScore(totalScore)}</span>
+      </div>
+      <div class="team-card-body">`;
+
+    data.players.forEach(playerName => {
+      const p = players[playerName];
+      const pickNum = DRAFT_ORDER[playerName] || "?";
+      const cutClass = (p.status === "cut" || p.status === "wd") ? "cut" : "";
+      html += `<div class="team-player ${cutClass}">
+        <span><span class="pick-num">#${pickNum}</span> ${playerName}</span>
+        <span class="player-score ${scoreClass(p.score, p.status)}">${formatScore(p.score)}</span>
+      </div>`;
+    });
+
+    html += `</div></div>`;
+  }
+  html += `</div>`;
+  document.getElementById('teams').innerHTML = html;
+}
+
+function renderStandings() {
+  const standings = Object.keys(OWNERS)
+    .map(owner => ({ owner, ...getTeamScore(owner) }))
+    .sort((a, b) => {
+      if (!a.eligible && b.eligible) return 1;
+      if (a.eligible && !b.eligible) return -1;
+      if (a.totalScore === null && b.totalScore === null) return 0;
+      if (a.totalScore === null) return 1;
+      if (b.totalScore === null) return -1;
+      return a.totalScore - b.totalScore;
+    });
+
+  let html = `<h2 class="section-title">Team Standings</h2>
+    <p style="font-size:0.8rem;color:#888;margin:4px 0 8px;">Team score = sum of all active players. Must have 4+ players make the cut to be eligible.</p>
+    <div class="team-standings">`;
+
+  standings.forEach((t, i) => {
+    const rankClass = i === 0 ? "first" : i === 1 ? "second" : "";
+    const eligClass = !t.eligible ? "ineligible" : "";
+    html += `<div class="team-standing-row ${eligClass}">
+      <div class="team-rank ${rankClass}">${i + 1}</div>
+      <div class="team-info">
+        <h3>${t.owner}</h3>
+        <span class="players-made-cut">${t.madeCut} active / ${t.cutPlayers} cut</span>
+        ${!t.eligible ? '<span class="ineligible-label"> &bull; INELIGIBLE (need 4 to make cut)</span>' : ''}
+      </div>
+      <div class="team-total-score ${scoreClass(t.totalScore, '')}">${formatScore(t.totalScore)}</div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  // Individual leader
+  const topPlayers = getPlayersSorted().filter(p => p.status === "active").slice(0, 5);
+  if (topPlayers.length > 0 && topPlayers[0].score !== null) {
+    html += `<h2 class="section-title" style="margin-top:24px">Individual Leader (Masters Winner = $6K / Runner-Up = $3K)</h2>
+      <table class="leaderboard-table">
+      <thead><tr><th class="pos-col">Pos</th><th>Player</th><th>Owner</th><th class="score-col">Score</th></tr></thead><tbody>`;
+    topPlayers.forEach((p, i) => {
+      html += `<tr>
+        <td class="pos-col">${i + 1}</td>
+        <td>${p.name}</td>
+        <td>${p.owner}</td>
+        <td class="score-col ${scoreClass(p.score, p.status)}">${formatScore(p.score)}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  }
+
+  document.getElementById('standings').innerHTML = html;
+}
+
+function renderPayouts() {
+  let html = `<h2 class="section-title">Payout Structure</h2>
+    <div class="payouts-grid">
+      <div class="payout-card"><h3>Masters Winner</h3><div class="payout-amount">$6,000</div><div class="payout-desc">Owner of the tournament champion</div></div>
+      <div class="payout-card"><h3>Masters Runner-Up</h3><div class="payout-amount">$3,000</div><div class="payout-desc">Owner of the solo 2nd place finisher</div></div>
+      <div class="payout-card"><h3>Team Champion</h3><div class="payout-amount">$10,000</div><div class="payout-desc">Lowest combined team score (4+ must make cut)</div></div>
+      <div class="payout-card"><h3>Team Runner-Up</h3><div class="payout-amount">$5,000</div><div class="payout-desc">Second lowest combined team score</div></div>
+    </div>
+    <div class="rules-box">
+      <h3>Pool Rules</h3>
+      <ul>
+        <li><strong>Buy-in:</strong> $3,000 per team (8 teams = $24,000 total pot)</li>
+        <li><strong>Draft:</strong> Snake draft, 8 rounds, 8 players per team (64 total picks)</li>
+        <li><strong>Team Eligibility:</strong> At least 4 of your 8 players must make the cut</li>
+        <li><strong>Team Score:</strong> Sum of all active (made the cut) players' tournament scores</li>
+        <li><strong>Individual Prizes:</strong> Based on which owner drafted the Masters winner / runner-up</li>
+      </ul>
+    </div>`;
+  document.getElementById('payouts').innerHTML = html;
+}
+
+function renderAdmin() {
+  const feedLabel = feedSource === "masters" ? "Masters.com" : feedSource === "espn" ? "ESPN" : "None";
+  let html = `<h2 class="section-title">Live Feed Settings</h2>
+    <div class="rules-box" style="margin-top:12px">
+      <h3>Auto-Refresh Status</h3>
+      <p>Feed source: <strong>${feedLabel}</strong></p>
+      <p>Last fetched: <strong>${lastFetchTime ? lastFetchTime.toLocaleTimeString() : "Never"}</strong></p>
+      <p>Refresh interval: <strong>${refreshSeconds} seconds</strong></p>
+      <br>
+      <button class="admin-btn" onclick="fetchLiveScores()">Refresh Now</button>
+      <button class="admin-btn" onclick="toggleAutoRefresh()">
+        ${autoRefreshInterval ? "Pause Auto-Refresh" : "Start Auto-Refresh"}
+      </button>
+    </div>
+
+    <h2 class="section-title" style="margin-top:24px">Manual Score Override</h2>
+    <p style="font-size:0.85rem;color:#666;margin:8px 0;">If the live feed isn't working, paste score JSON below and click Apply.</p>
+    <div class="admin-section">
+      <textarea id="scoreEditor">${JSON.stringify(players, null, 2)}</textarea>
+      <br>
+      <button class="admin-btn" onclick="applyManualScores()">Apply Manual Scores</button>
+      <div id="statusMsg" class="status-msg"></div>
+    </div>`;
+  document.getElementById('admin').innerHTML = html;
+}
+
+function applyManualScores() {
+  const msg = document.getElementById('statusMsg');
+  try {
+    const data = JSON.parse(document.getElementById('scoreEditor').value);
+    Object.assign(players, data);
+    feedSource = "manual";
+    renderAll();
+    msg.className = "status-msg success";
+    msg.textContent = "Manual scores applied!";
+  } catch(e) {
+    msg.className = "status-msg error";
+    msg.textContent = "Invalid JSON: " + e.message;
+  }
+}
+
+function showTab(tabId, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+function toggleAutoRefresh() {
+  if (autoRefreshInterval) {
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+  } else {
+    autoRefreshInterval = setInterval(fetchLiveScores, refreshSeconds * 1000);
+  }
+  renderAdmin();
+}
+
+function renderAll() {
+  renderLeaderboard();
+  renderTeams();
+  renderStandings();
+  renderPayouts();
+  renderAdmin();
+  const timeStr = lastFetchTime ? lastFetchTime.toLocaleString() : "Pre-Tournament";
+  document.getElementById('lastUpdated').textContent = `Last updated: ${timeStr}`;
+}
+
+// ============================================================
+//  INIT: fetch scores on load, start auto-refresh
+// ============================================================
+renderAll();
+fetchLiveScores().then(() => {
+  // Start auto-refresh
+  autoRefreshInterval = setInterval(fetchLiveScores, refreshSeconds * 1000);
+  renderAdmin();
+});
+</script>
+
+</body>
+</html>
