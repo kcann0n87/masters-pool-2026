@@ -849,14 +849,8 @@ function renderAdmin() {
       </button>
     </div>
 
-    <h2 class="section-title" style="margin-top:24px">Manual Score Override</h2>
-    <p style="font-size:0.85rem;color:#666;margin:8px 0;">If the live feed isn't working, paste score JSON below and click Apply.</p>
-    <div class="admin-section">
-      <textarea id="scoreEditor">${JSON.stringify(players, null, 2)}</textarea>
-      <br>
-      <button class="admin-btn" onclick="applyManualScores()">Apply Manual Scores</button>
-      <div id="statusMsg" class="status-msg"></div>
-    </div>`;
+`;
+
   document.getElementById('admin').innerHTML = html;
 }
 
