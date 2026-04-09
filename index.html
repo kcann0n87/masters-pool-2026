@@ -514,7 +514,13 @@ async function fetchMastersFeed() {
   const feedPlayers = data.data.player;
 
   // Strip diacritics and lowercase (Højgaard -> hojgaard, Åberg -> aberg)
-  const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const norm = s => (s || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[øØ]/g, "o")
+    .replace(/[æÆ]/g, "ae")
+    .replace(/[łŁ]/g, "l")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase().trim();
 
   // Build lookup by last name and full name
   const byLastName = {};
@@ -599,7 +605,13 @@ async function fetchESPNFeed() {
 
   const competitors = competition.competitors;
 
-  const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const norm = s => (s || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[øØ]/g, "o")
+    .replace(/[æÆ]/g, "ae")
+    .replace(/[łŁ]/g, "l")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase().trim();
 
   // Build lookup by last name
   const byLastName = {};
