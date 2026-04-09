@@ -728,15 +728,17 @@ function getTeamScore(ownerName) {
   const madeCut = team.players.filter(p => players[p].status === "active").length;
   const cutPlayers = team.players.filter(p => players[p].status === "cut" || players[p].status === "wd").length;
 
+  // Team score = sum of the BEST 4 scores (lowest 4, since lower is better)
+  const bestFour = activePlayers.slice(0, 4);
   let totalScore = null;
-  if (activePlayers.length > 0) {
-    totalScore = activePlayers.reduce((sum, p) => sum + p.score, 0);
+  if (bestFour.length > 0) {
+    totalScore = bestFour.reduce((sum, p) => sum + p.score, 0);
   }
 
   const hasCut = Object.values(players).some(p => p.status === "cut");
   const eligible = !hasCut || madeCut >= 4;
 
-  return { totalScore, madeCut, cutPlayers, eligible, activeWithScores: activePlayers.length };
+  return { totalScore, madeCut, cutPlayers, eligible, activeWithScores: activePlayers.length, countingPlayers: bestFour.map(p => p.name) };
 }
 
 // ============================================================
@@ -791,7 +793,8 @@ function renderTeams() {
   let html = `<h2 class="section-title">Team Rosters</h2><div class="teams-grid">`;
 
   for (const [owner, data] of Object.entries(OWNERS)) {
-    const { totalScore } = getTeamScore(owner);
+    const { totalScore, countingPlayers } = getTeamScore(owner);
+    const countingSet = new Set(countingPlayers || []);
     html += `<div class="team-card">
       <div class="team-card-header">
         <h3>${owner}</h3>
@@ -803,8 +806,10 @@ function renderTeams() {
       const p = players[playerName];
       const pickNum = DRAFT_ORDER[playerName] || "?";
       const cutClass = (p.status === "cut" || p.status === "wd") ? "cut" : "";
-      html += `<div class="team-player ${cutClass}">
-        <span><span class="pick-num">#${pickNum}</span> ${playerName}</span>
+      const countingClass = countingSet.has(playerName) ? "counting" : "";
+      const star = countingSet.has(playerName) ? '<span style="color:var(--masters-gold);margin-right:4px">&#9733;</span>' : '';
+      html += `<div class="team-player ${cutClass} ${countingClass}">
+        <span>${star}<span class="pick-num">#${pickNum}</span> ${playerName}</span>
         <span class="player-score ${scoreClass(p.score, p.status)}">${formatScore(p.score)}</span>
       </div>`;
     });
@@ -828,7 +833,7 @@ function renderStandings() {
     });
 
   let html = `<h2 class="section-title">Team Standings</h2>
-    <p style="font-size:0.8rem;color:#888;margin:4px 0 8px;">Team score = sum of all active players. Must have 4+ players make the cut to be eligible.</p>
+    <p style="font-size:0.8rem;color:#888;margin:4px 0 8px;">Team score = sum of the BEST 4 player scores. Must have 4+ players make the cut to be eligible.</p>
     <div class="team-standings">`;
 
   standings.forEach((t, i) => {
@@ -900,7 +905,7 @@ function renderPayouts() {
     <div class="payouts-grid">
       <div class="payout-card"><h3>Masters Winner</h3><div class="payout-amount">$6,000</div><div class="payout-desc">Owner of the tournament champion</div></div>
       <div class="payout-card"><h3>Masters Runner-Up</h3><div class="payout-amount">$3,000</div><div class="payout-desc">Owner of the solo 2nd place finisher</div></div>
-      <div class="payout-card"><h3>Team Champion</h3><div class="payout-amount">$10,000</div><div class="payout-desc">Lowest combined team score (4+ must make cut)</div></div>
+      <div class="payout-card"><h3>Team Champion</h3><div class="payout-amount">$10,000</div><div class="payout-desc">Lowest best-4 combined score (4+ must make cut)</div></div>
       <div class="payout-card"><h3>Team Runner-Up</h3><div class="payout-amount">$5,000</div><div class="payout-desc">Second lowest combined team score</div></div>
     </div>
     <div class="rules-box">
@@ -909,7 +914,7 @@ function renderPayouts() {
         <li><strong>Buy-in:</strong> $3,000 per team (8 teams = $24,000 total pot)</li>
         <li><strong>Draft:</strong> Snake draft, 8 rounds, 8 players per team (64 total picks)</li>
         <li><strong>Team Eligibility:</strong> At least 4 of your 8 players must make the cut</li>
-        <li><strong>Team Score:</strong> Sum of all active (made the cut) players' tournament scores</li>
+        <li><strong>Team Score:</strong> Sum of the best 4 player scores (of those who made the cut)</li>
         <li><strong>Individual Prizes:</strong> Based on which owner drafted the Masters winner / runner-up</li>
       </ul>
     </div>`;
