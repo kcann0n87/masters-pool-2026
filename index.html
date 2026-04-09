@@ -135,18 +135,25 @@
   .score-even { color: var(--par); }
   .score-cut { color: #999; }
 
-  .team-standings { display: grid; gap: 16px; margin-top: 12px; }
-  .team-standing-row {
+  .team-standings { display: grid; gap: 12px; margin-top: 12px; }
+  .team-standing {
     background: white;
     border-radius: 8px;
-    padding: 16px 20px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+  .team-standing-row {
+    padding: 16px 20px;
     display: grid;
-    grid-template-columns: 40px 1fr auto;
+    grid-template-columns: 40px 1fr auto 24px;
     align-items: center;
     gap: 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
   }
-  .team-standing-row.ineligible { opacity: 0.6; }
+  .team-standing-row:hover { background: var(--masters-light); }
+  .team-standing.ineligible { opacity: 0.6; }
   .team-rank { font-size: 1.5rem; font-weight: bold; color: var(--masters-gold); text-align: center; }
   .team-rank.first { color: #c8a951; }
   .team-rank.second { color: #8a8a8a; }
@@ -154,6 +161,34 @@
   .team-info .players-made-cut { font-size: 0.8rem; color: #888; }
   .team-info .ineligible-label { color: var(--cut-red); font-weight: bold; font-size: 0.75rem; }
   .team-total-score { font-size: 1.4rem; font-weight: bold; }
+  .team-caret {
+    font-size: 0.9rem;
+    color: #999;
+    transition: transform 0.2s;
+    text-align: center;
+  }
+  .team-standing.expanded .team-caret { transform: rotate(180deg); }
+  .team-players-dropdown {
+    display: none;
+    border-top: 1px solid #eee;
+    background: #fafafa;
+  }
+  .team-standing.expanded .team-players-dropdown { display: block; }
+  .team-dropdown-player {
+    display: grid;
+    grid-template-columns: 40px 1fr auto auto;
+    gap: 12px;
+    padding: 8px 20px;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #f0f0f0;
+    align-items: center;
+  }
+  .team-dropdown-player:last-child { border-bottom: none; }
+  .team-dropdown-player.cut { color: #bbb; text-decoration: line-through; }
+  .team-dropdown-player.cut .dropdown-score { text-decoration: none; }
+  .team-dropdown-player .dropdown-pick { color: #aaa; font-size: 0.75rem; text-align: center; }
+  .team-dropdown-player .dropdown-thru { color: #999; font-size: 0.75rem; }
+  .team-dropdown-player .dropdown-score { font-weight: bold; min-width: 40px; text-align: right; }
 
   .teams-grid {
     display: grid;
@@ -290,7 +325,8 @@
   @media (max-width: 600px) {
     header h1 { font-size: 1.4rem; }
     .tab-btn { padding: 10px 14px; font-size: 0.8rem; }
-    .team-standing-row { grid-template-columns: 30px 1fr auto; padding: 12px; }
+    .team-standing-row { grid-template-columns: 30px 1fr auto 20px; padding: 12px; gap: 10px; }
+    .team-dropdown-player { grid-template-columns: 30px 1fr auto auto; padding: 8px 12px; }
     .teams-grid { grid-template-columns: 1fr; }
   }
 </style>
@@ -477,31 +513,34 @@ async function fetchMastersFeed() {
 
   const feedPlayers = data.data.player;
 
+  // Strip diacritics and lowercase (Højgaard -> hojgaard, Åberg -> aberg)
+  const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
   // Build lookup by last name and full name
   const byLastName = {};
   const byFullName = {};
   feedPlayers.forEach(fp => {
-    const lastName = (fp.last_name || fp.display_name || "").trim();
-    const fullName = (fp.full_name || "").trim();
-    const firstName = (fp.first_name || "").trim();
-    byLastName[lastName.toLowerCase()] = fp;
-    byFullName[fullName.toLowerCase()] = fp;
+    const lastName = norm(fp.last_name || fp.display_name || "");
+    const fullName = norm(fp.full_name || "");
+    const firstName = norm(fp.first_name || "");
+    byLastName[lastName] = fp;
+    byFullName[fullName] = fp;
     // Also index "LastName, FirstInitial" for disambiguation
     if (firstName) {
-      byLastName[(lastName + ", " + firstName[0]).toLowerCase()] = fp;
+      byLastName[lastName + ", " + firstName[0]] = fp;
     }
   });
 
   // Map pool players to feed data
   for (const [poolName, feedHint] of Object.entries(NAME_TO_FEED)) {
-    const hint = feedHint.toLowerCase();
+    const hint = norm(feedHint);
     let fp = byLastName[hint] || byFullName[hint];
 
     // Fallback: search by partial match on full_name
     if (!fp) {
       fp = feedPlayers.find(p =>
-        (p.full_name || "").toLowerCase().includes(hint) ||
-        (p.last_name || "").toLowerCase() === hint
+        norm(p.full_name || "").includes(hint) ||
+        norm(p.last_name || "") === hint
       );
     }
 
@@ -560,24 +599,26 @@ async function fetchESPNFeed() {
 
   const competitors = competition.competitors;
 
+  const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
   // Build lookup by last name
   const byLastName = {};
   competitors.forEach(c => {
     const athlete = c.athlete || {};
-    const lastName = (athlete.lastName || athlete.displayName || "").toLowerCase();
-    const fullName = (athlete.fullName || athlete.displayName || "").toLowerCase();
+    const lastName = norm(athlete.lastName || athlete.displayName || "");
+    const fullName = norm(athlete.fullName || athlete.displayName || "");
     byLastName[lastName] = c;
     byLastName[fullName] = c;
   });
 
   for (const [poolName, feedHint] of Object.entries(NAME_TO_FEED)) {
-    const hint = feedHint.toLowerCase();
+    const hint = norm(feedHint);
     let c = byLastName[hint];
     if (!c) {
       c = competitors.find(comp => {
         const a = comp.athlete || {};
-        return (a.lastName || "").toLowerCase() === hint ||
-               (a.fullName || "").toLowerCase().includes(hint);
+        return norm(a.lastName || "") === hint ||
+               norm(a.fullName || "").includes(hint);
       });
     }
 
@@ -781,14 +822,43 @@ function renderStandings() {
   standings.forEach((t, i) => {
     const rankClass = i === 0 ? "first" : i === 1 ? "second" : "";
     const eligClass = !t.eligible ? "ineligible" : "";
-    html += `<div class="team-standing-row ${eligClass}">
-      <div class="team-rank ${rankClass}">${i + 1}</div>
-      <div class="team-info">
-        <h3>${t.owner}</h3>
-        <span class="players-made-cut">${t.madeCut} active / ${t.cutPlayers} cut</span>
-        ${!t.eligible ? '<span class="ineligible-label"> &bull; INELIGIBLE (need 4 to make cut)</span>' : ''}
+
+    // Build player dropdown list sorted by score
+    const teamPlayers = OWNERS[t.owner].players
+      .map(name => ({ name, ...players[name], pick: DRAFT_ORDER[name] }))
+      .sort((a, b) => {
+        if (a.status === "cut" && b.status !== "cut") return 1;
+        if (b.status === "cut" && a.status !== "cut") return -1;
+        if (a.score === null && b.score === null) return a.pick - b.pick;
+        if (a.score === null) return 1;
+        if (b.score === null) return -1;
+        return a.score - b.score;
+      });
+
+    let dropdownHtml = '<div class="team-players-dropdown">';
+    teamPlayers.forEach(p => {
+      const cutCls = (p.status === "cut" || p.status === "wd") ? "cut" : "";
+      dropdownHtml += `<div class="team-dropdown-player ${cutCls}">
+        <span class="dropdown-pick">#${p.pick}</span>
+        <span>${p.name}</span>
+        <span class="dropdown-thru">${p.thru || ""}</span>
+        <span class="dropdown-score ${scoreClass(p.score, p.status)}">${formatScore(p.score)}</span>
+      </div>`;
+    });
+    dropdownHtml += '</div>';
+
+    html += `<div class="team-standing ${eligClass}">
+      <div class="team-standing-row" onclick="toggleTeamDropdown(this)">
+        <div class="team-rank ${rankClass}">${i + 1}</div>
+        <div class="team-info">
+          <h3>${t.owner}</h3>
+          <span class="players-made-cut">${t.madeCut} active / ${t.cutPlayers} cut</span>
+          ${!t.eligible ? '<span class="ineligible-label"> &bull; INELIGIBLE (need 4 to make cut)</span>' : ''}
+        </div>
+        <div class="team-total-score ${scoreClass(t.totalScore, '')}">${formatScore(t.totalScore)}</div>
+        <div class="team-caret">&#9660;</div>
       </div>
-      <div class="team-total-score ${scoreClass(t.totalScore, '')}">${formatScore(t.totalScore)}</div>
+      ${dropdownHtml}
     </div>`;
   });
   html += `</div>`;
@@ -867,6 +937,10 @@ function applyManualScores() {
     msg.className = "status-msg error";
     msg.textContent = "Invalid JSON: " + e.message;
   }
+}
+
+function toggleTeamDropdown(rowEl) {
+  rowEl.parentElement.classList.toggle('expanded');
 }
 
 function showTab(tabId, btn) {
