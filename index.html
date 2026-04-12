@@ -900,15 +900,126 @@ function renderStandings() {
   document.getElementById('standings').innerHTML = html;
 }
 
+function calcPayouts() {
+  // Returns { ownerName: totalWinnings } for current standings
+  const winnings = {};
+  Object.keys(OWNERS).forEach(o => winnings[o] = 0);
+
+  const sorted = getPlayersSorted().filter(p => p.status === "active" && p.score !== null);
+  const hasScores = sorted.length > 0;
+  if (!hasScores) return { winnings, details: [] };
+
+  const details = [];
+
+  // --- Individual: Masters Winner ($6K) and Runner-Up ($3K) ---
+  if (sorted.length >= 1) {
+    const bestScore = sorted[0].score;
+    const winners = sorted.filter(p => p.score === bestScore);
+    if (winners.length === 1) {
+      // Clear winner
+      winnings[winners[0].owner] += 6000;
+      details.push({ prize: "Masters Winner", amount: 6000, owners: [winners[0].owner], player: winners[0].name });
+      // Runner-up
+      const remaining = sorted.filter(p => p.score !== bestScore);
+      if (remaining.length >= 1) {
+        const runnerScore = remaining[0].score;
+        const runners = remaining.filter(p => p.score === runnerScore);
+        const split = Math.round(3000 / runners.length);
+        runners.forEach(r => winnings[r.owner] += split);
+        details.push({ prize: "Masters Runner-Up", amount: 3000, owners: runners.map(r => r.owner), player: runners.map(r => r.name).join(", "), split: runners.length > 1 });
+      }
+    } else {
+      // Tie at top — split winner + runner-up ($9K total) among all tied
+      const totalPool = winners.length === 2 ? 9000 : 6000; // if 3+ tied, only split winner money? No — 2 tied split 9K, 3+ tied split 9K
+      const splitAmount = Math.round(totalPool / winners.length);
+      winners.forEach(w => winnings[w.owner] += splitAmount);
+      details.push({ prize: "Masters Winner + Runner-Up (tied)", amount: totalPool, owners: winners.map(w => w.owner), player: winners.map(w => w.name).join(", "), split: true });
+    }
+  }
+
+  // --- Team: Champion ($10K) and Runner-Up ($5K) ---
+  const teamStandings = Object.keys(OWNERS)
+    .map(owner => ({ owner, ...getTeamScore(owner) }))
+    .filter(t => t.eligible && t.totalScore !== null)
+    .sort((a, b) => a.totalScore - b.totalScore);
+
+  if (teamStandings.length >= 1) {
+    const bestTeamScore = teamStandings[0].totalScore;
+    const teamWinners = teamStandings.filter(t => t.totalScore === bestTeamScore);
+    if (teamWinners.length === 1) {
+      winnings[teamWinners[0].owner] += 10000;
+      details.push({ prize: "Team Champion", amount: 10000, owners: [teamWinners[0].owner] });
+      // Team runner-up
+      const teamRemaining = teamStandings.filter(t => t.totalScore !== bestTeamScore);
+      if (teamRemaining.length >= 1) {
+        const runnerTeamScore = teamRemaining[0].totalScore;
+        const teamRunners = teamRemaining.filter(t => t.totalScore === runnerTeamScore);
+        const split = Math.round(5000 / teamRunners.length);
+        teamRunners.forEach(r => winnings[r.owner] += split);
+        details.push({ prize: "Team Runner-Up", amount: 5000, owners: teamRunners.map(r => r.owner), split: teamRunners.length > 1 });
+      }
+    } else {
+      // Tie at top — split champ + runner-up ($15K total)
+      const totalPool = teamWinners.length === 2 ? 15000 : 10000;
+      const splitAmount = Math.round(totalPool / teamWinners.length);
+      teamWinners.forEach(w => winnings[w.owner] += splitAmount);
+      details.push({ prize: "Team Champion + Runner-Up (tied)", amount: totalPool, owners: teamWinners.map(w => w.owner), split: true });
+    }
+  }
+
+  return { winnings, details };
+}
+
 function renderPayouts() {
+  const { winnings, details } = calcPayouts();
+  const hasScores = Object.values(players).some(p => p.score !== null);
+
   let html = `<h2 class="section-title">Payout Structure</h2>
     <div class="payouts-grid">
       <div class="payout-card"><h3>Masters Winner</h3><div class="payout-amount">$6,000</div><div class="payout-desc">Owner of the tournament champion</div></div>
       <div class="payout-card"><h3>Masters Runner-Up</h3><div class="payout-amount">$3,000</div><div class="payout-desc">Owner of the solo 2nd place finisher</div></div>
       <div class="payout-card"><h3>Team Champion</h3><div class="payout-amount">$10,000</div><div class="payout-desc">Lowest best-4 combined score (4+ must make cut)</div></div>
       <div class="payout-card"><h3>Team Runner-Up</h3><div class="payout-amount">$5,000</div><div class="payout-desc">Second lowest combined team score</div></div>
-    </div>
-    <div class="rules-box">
+    </div>`;
+
+  // Current winnings per team
+  if (hasScores) {
+    html += `<h2 class="section-title" style="margin-top:24px">Current Winnings (as it stands now)</h2>`;
+
+    // Prize breakdown
+    if (details.length > 0) {
+      html += `<table class="leaderboard-table" style="margin-bottom:16px">
+        <thead><tr><th>Prize</th><th>Owner(s)</th><th class="score-col">Amount</th></tr></thead><tbody>`;
+      details.forEach(d => {
+        const ownerStr = d.owners.join(", ") + (d.split ? " (split)" : "");
+        const playerStr = d.player ? ` <span style="color:#888;font-size:0.8rem">(${d.player})</span>` : "";
+        const perPerson = d.split ? Math.round(d.amount / d.owners.length) : d.amount;
+        html += `<tr><td>${d.prize}${playerStr}</td><td>${ownerStr}</td><td class="score-col" style="color:var(--masters-green);font-weight:bold">$${perPerson.toLocaleString()}${d.split ? " each" : ""}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+    }
+
+    // Summary per owner
+    const ownerTotals = Object.entries(winnings)
+      .map(([owner, amount]) => ({ owner, amount, net: amount - 3000 }))
+      .sort((a, b) => b.amount - a.amount);
+
+    html += `<table class="leaderboard-table">
+      <thead><tr><th>Owner</th><th class="score-col">Winnings</th><th class="score-col">Buy-In</th><th class="score-col">Net</th></tr></thead><tbody>`;
+    ownerTotals.forEach(o => {
+      const netClass = o.net > 0 ? "score-under" : o.net < 0 ? "score-over" : "score-even";
+      const netStr = o.net > 0 ? `+$${o.net.toLocaleString()}` : o.net < 0 ? `-$${Math.abs(o.net).toLocaleString()}` : "$0";
+      html += `<tr>
+        <td>${o.owner}</td>
+        <td class="score-col" style="font-weight:bold;color:var(--masters-green)">${o.amount > 0 ? "$" + o.amount.toLocaleString() : "—"}</td>
+        <td class="score-col" style="color:#888">$3,000</td>
+        <td class="score-col ${netClass}">${netStr}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  }
+
+  html += `<div class="rules-box" style="margin-top:16px">
       <h3>Pool Rules</h3>
       <ul>
         <li><strong>Buy-in:</strong> $3,000 per team (8 teams = $24,000 total pot)</li>
@@ -916,6 +1027,7 @@ function renderPayouts() {
         <li><strong>Team Eligibility:</strong> At least 4 of your 8 players must make the cut</li>
         <li><strong>Team Score:</strong> Sum of the best 4 player scores (of those who made the cut)</li>
         <li><strong>Individual Prizes:</strong> Based on which owner drafted the Masters winner / runner-up</li>
+        <li><strong>Ties:</strong> Prize money is split evenly among tied owners</li>
       </ul>
     </div>`;
   document.getElementById('payouts').innerHTML = html;
